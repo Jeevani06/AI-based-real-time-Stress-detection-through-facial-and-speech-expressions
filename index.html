@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindScan — AI Stress Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+  --api: http://127.0.0.1:5000;
+  --bg: #F5F0FB;
+  --surface: #EDE4F7;
+  --s2: #E6DAF4;
+  --s3: #D9CCF0;
+  --border: rgba(100,70,160,0.10);
+  --border2: rgba(100,70,160,0.18);
+  --accent: #7C5CFC;
+  --a2: #E05A8A;
+  --a3: #00A98C;
+  --text: #1A1030;
+  --muted: #5A4A7A;
+  --high: #D03055;
+  --med: #C47A10;
+  --low: #008F74;
+  --r: 20px;
+  --card-shadow: 0 24px 80px rgba(80,40,160,0.10), 0 2px 8px rgba(80,40,160,0.05);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.025'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.orb { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0; }
+.o1 { width: 600px; height: 600px; background: radial-gradient(circle, rgba(180,160,255,.18) 0%, transparent 65%); top: -200px; right: -150px; }
+.o2 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(0,180,150,.12) 0%, transparent 65%); bottom: -180px; left: -120px; }
+.o3 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(220,160,200,.10) 0%, transparent 65%); top: 35%; left: 35%; }
+
+.page {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1;
+  transition: opacity .45s cubic-bezier(.4,0,.2,1), transform .45s cubic-bezier(.4,0,.2,1);
+}
+.page.hidden { opacity: 0; pointer-events: none; transform: translateY(16px); }
+#scanPage, #reportPage { align-items: flex-start; overflow-y: auto; padding: 0; }
+
+/* ════ AUTH ════ */
+#loginPage, #signupPage { flex-direction: column; background: var(--bg); }
+
+.auth-bg-pattern { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+.auth-bg-pattern::before {
+  content: '';
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background-image: radial-gradient(circle, rgba(124,92,252,.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.auth-layout {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr 1fr;
+  max-width: 960px; width: 90%; min-height: 580px;
+  border-radius: 28px; overflow: hidden;
+  box-shadow: var(--card-shadow);
+  animation: authIn .7s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes authIn {
+  from { opacity: 0; transform: translateY(32px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.auth-brand {
+  background: linear-gradient(145deg, #C9BFEE 0%, #BFB5E8 50%, #D4C8F6 100%);
+  padding: 48px 44px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  position: relative; overflow: hidden;
+}
+.auth-brand::before {
+  content: ''; position: absolute; top: -80px; right: -80px;
+  width: 300px; height: 300px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(124,92,252,.25) 0%, transparent 65%);
+}
+.auth-brand::after {
+  content: ''; position: absolute; bottom: -60px; left: -60px;
+  width: 250px; height: 250px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,180,150,.18) 0%, transparent 65%);
+}
+
+.brand-logo { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+.brand-icon {
+  width: 50px; height: 50px; border-radius: 14px;
+  background: linear-gradient(135deg, #A090E0 0%, #C06090 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; box-shadow: 0 8px 28px rgba(124,92,252,.30);
+}
+.brand-wordmark { font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 800; color: #2A1A5A; letter-spacing: -.02em; }
+.brand-wordmark span { color: #5A40A0; }
+
+.brand-hero { position: relative; z-index: 1; }
+.brand-hero-title { font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 800; color: #1A1030; line-height: 1.15; margin-bottom: 14px; }
+.brand-hero-title em { font-style: normal; color: #4A30A0; }
+.brand-hero-desc { font-size: 14px; color: #4A3A70; line-height: 1.65; }
+
+.brand-features { position: relative; z-index: 1; }
+.brand-feature { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.brand-feature-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: rgba(255,255,255,.30); border: 1px solid rgba(255,255,255,.45);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.brand-feature-text { font-size: 13px; color: #3A2A60; }
+
+.auth-form-panel { background: #FAF7FF; padding: 48px 44px; display: flex; flex-direction: column; justify-content: center; }
+.auth-form-title { font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.auth-form-sub { font-size: 13.5px; color: var(--muted); margin-bottom: 32px; line-height: 1.55; }
+
+.field { margin-bottom: 18px; }
+.field-label { display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: #5A4A7A; margin-bottom: 8px; }
+
+.input-group { position: relative; display: flex; align-items: center; }
+.input-icon { position: absolute; left: 14px; width: 17px; height: 17px; color: #8A70B0; pointer-events: none; transition: color .2s; z-index: 1; }
+.input-icon.right { left: auto; right: 14px; pointer-events: all; cursor: pointer; }
+
+.auth-input {
+  width: 100%; padding: 13px 44px;
+  background: #F0EAF8; border: 1.5px solid #D8CCEE;
+  border-radius: 12px; color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14.5px; outline: none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.auth-input:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 4px rgba(124,92,252,.12); }
+.auth-input::placeholder { color: #A090C0; }
+.auth-input.is-invalid { border-color: var(--high) !important; box-shadow: 0 0 0 4px rgba(208,48,85,.08) !important; }
+.auth-input.is-valid { border-color: var(--a3) !important; box-shadow: 0 0 0 4px rgba(0,169,140,.08) !important; }
+.input-group:focus-within .input-icon:first-child { color: var(--accent); }
+
+.field-msg { font-size: 12px; margin-top: 6px; padding-left: 2px; display: none; align-items: center; gap: 5px; }
+.field-msg.error { display: flex; color: var(--high); }
+.field-msg.success { display: flex; color: var(--a3); }
+
+.pw-strength-wrap { margin-top: 8px; display: none; }
+.pw-strength-wrap.show { display: block; }
+.pw-strength-bars { display: flex; gap: 4px; margin-bottom: 5px; }
+.pw-strength-bar { flex: 1; height: 3px; border-radius: 2px; background: #D8CCEE; transition: background .3s; }
+.pw-strength-label { font-size: 11.5px; color: var(--muted); }
+
+.btn-auth {
+  width: 100%; padding: 14px; border: none; border-radius: 12px;
+  font-family: 'Outfit', sans-serif; font-size: 15.5px; font-weight: 700;
+  cursor: pointer; letter-spacing: .01em;
+  background: linear-gradient(135deg, #8A70E0 0%, #6A50C0 100%);
+  color: #fff; transition: transform .15s, box-shadow .2s, opacity .2s;
+  position: relative; overflow: hidden; margin-top: 4px;
+}
+.btn-auth::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,.15) 0%, transparent 60%); pointer-events: none; }
+.btn-auth:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(124,92,252,.35); }
+.btn-auth:active { transform: translateY(0); }
+.btn-auth:disabled { opacity: .5; transform: none; cursor: not-allowed; box-shadow: none; }
+
+.auth-error { display: none; align-items: center; gap: 8px; background: #FFF0F3; border: 1.5px solid #F5B0C0; border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--high); margin-top: 12px; }
+.auth-error.show { display: flex; }
+
+.lockout-banner { display: none; background: #FFF4E8; border: 1.5px solid #FFCC90; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: #A05010; text-align: center; margin-top: 10px; }
+.lockout-banner.show { display: block; }
+
+.auth-switch { text-align: center; margin-top: 20px; font-size: 13.5px; color: var(--muted); }
+.auth-switch a { color: var(--accent); font-weight: 600; text-decoration: none; cursor: pointer; transition: opacity .2s; }
+.auth-switch a:hover { opacity: .75; }
+
+.demo-tag { display: inline-flex; align-items: center; gap: 6px; background: #EDE8FF; border: 1px solid #C8BCFF; border-radius: 8px; padding: 6px 12px; font-size: 11.5px; color: #5040A0; margin-top: 8px; }
+.demo-tag code { background: #DDD6FF; padding: 1px 6px; border-radius: 4px; font-size: 11px; color: #3A2A80; }
+
+@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-7px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(5px); } }
+.shake { animation: shake .38s cubic-bezier(.36,.07,.19,.97); }
+
+/* ════ TOP BAR ════ */
+.scan-container { width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 32px 80px; position: relative; z-index: 2; }
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+.brand-sm { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--text); }
+.brand-sm span { color: var(--accent); }
+
+.user-chip { display: flex; align-items: center; gap: 10px; background: #FAF7FF; border: 1.5px solid var(--border2); border-radius: 100px; padding: 7px 16px 7px 7px; cursor: pointer; transition: border-color .2s, box-shadow .2s; box-shadow: 0 2px 8px rgba(80,40,160,.06); }
+.user-chip:hover { border-color: rgba(124,92,252,.45); box-shadow: 0 4px 16px rgba(124,92,252,.14); }
+.ava { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #A090E0, #D06090); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; }
+.uname { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.logout-btn { font-size: 11.5px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: 6px; transition: color .2s, background .2s; }
+.logout-btn:hover { color: var(--high); background: rgba(208,48,85,.06); }
+
+/* ════ SCAN PAGE ════ */
+.scan-hero { text-align: center; margin-bottom: 40px; }
+.scan-hero h1 { font-family: 'Outfit', sans-serif; font-size: 38px; font-weight: 800; line-height: 1.1; margin-bottom: 8px; color: var(--text); }
+.scan-hero h1 em { font-style: normal; background: linear-gradient(90deg, var(--accent), var(--a2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.scan-hero p { color: var(--muted); font-size: 15px; }
+
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+
+.panel { background: #FAF7FF; border: 1.5px solid var(--border); border-radius: var(--r); padding: 22px; position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(80,40,160,.06); }
+.panel::before { content: ''; position: absolute; inset: 0; border-radius: var(--r); background: linear-gradient(145deg, rgba(255,255,255,.7) 0%, transparent 60%); pointer-events: none; }
+
+.ptitle { font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a3); box-shadow: 0 0 6px var(--a3); animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+.live-dot.red { background: var(--high); box-shadow: 0 0 6px var(--high); }
+
+.vid-wrap { position: relative; border-radius: 16px; overflow: hidden; background: #E8E0F5; aspect-ratio: 4/3; box-shadow: 0 0 0 2px var(--border2), 0 8px 32px rgba(0,0,0,.12); }
+#videoFeed { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+#faceCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; transform: scaleX(-1); }
+.cam-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); font-size: 13px; background: #EDE8F8; }
+.vid-wrap.active .cam-placeholder { display: none; }
+
+.cam-corner { position: absolute; width: 20px; height: 20px; pointer-events: none; z-index: 5; }
+.cam-corner.tl { top: 8px; left: 8px; border-top: 2px solid var(--a3); border-left: 2px solid var(--a3); border-radius: 4px 0 0 0; }
+.cam-corner.tr { top: 8px; right: 8px; border-top: 2px solid var(--a3); border-right: 2px solid var(--a3); border-radius: 0 4px 0 0; }
+.cam-corner.bl { bottom: 8px; left: 8px; border-bottom: 2px solid var(--a3); border-left: 2px solid var(--a3); border-radius: 0 0 0 4px; }
+.cam-corner.br { bottom: 8px; right: 8px; border-bottom: 2px solid var(--a3); border-right: 2px solid var(--a3); border-radius: 0 0 4px 0; }
+
+.cam-emotion-pill { position: absolute; top: 10px; left: 10px; background: rgba(240,235,255,0.92); backdrop-filter: blur(12px); border: 1px solid rgba(0,169,140,.3); border-radius: 10px; padding: 8px 14px; display: none; z-index: 6; }
+.cam-emotion-pill .emo-name { font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: var(--a3); transition: color .3s; }
+.cam-emotion-pill .emo-conf { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.cam-live-badge { position: absolute; top: 10px; right: 10px; background: rgba(240,235,255,0.92); backdrop-filter: blur(12px); border: 1px solid var(--border2); border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 700; display: none; align-items: center; gap: 6px; z-index: 6; color: var(--text); }
+.vid-status { position: absolute; bottom: 10px; left: 10px; background: rgba(240,235,255,0.90); backdrop-filter: blur(10px); border: 1px solid rgba(100,70,160,.15); border-radius: 8px; padding: 6px 12px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; z-index: 6; }
+
+.scan-overlay { position: absolute; inset: 0; background: rgba(20,10,50,.50); backdrop-filter: blur(3px); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: 16px; z-index: 8; }
+.scan-overlay.active { display: flex; }
+.cd-wrap { position: relative; width: 120px; height: 120px; }
+.cd-svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+.cd-track { fill: none; stroke: rgba(255,255,255,.10); stroke-width: 7; }
+.cd-ring { fill: none; stroke: var(--a3); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 345; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear, stroke .5s; }
+.cd-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.cd-num { font-family: 'Outfit', sans-serif; font-size: 34px; font-weight: 800; line-height: 1; color: #fff; }
+.cd-unit { font-size: 10px; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .1em; margin-top: 2px; }
+.scan-overlay-label { font-size: 12px; font-weight: 600; color: #A0FFE0; letter-spacing: .06em; text-transform: uppercase; }
+.scan-overlay-frames { font-size: 11px; color: rgba(255,255,255,.55); }
+.no-face-msg { position: absolute; bottom: 44px; left: 10px; right: 10px; text-align: center; background: rgba(208,48,85,.12); border: 1px solid rgba(208,48,85,.3); border-radius: 8px; padding: 6px 10px; font-size: 11.5px; color: var(--high); display: none; z-index: 7; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.chip { padding: 5px 12px; border-radius: 100px; font-size: 11.5px; font-weight: 500; border: 1.5px solid var(--border); background: var(--s2); color: var(--muted); transition: all .3s; }
+.chip.on { background: rgba(124,92,252,.15); border-color: var(--accent); color: #3A1EB0; }
+.chip.high { background: rgba(208,48,85,.12); border-color: var(--high); color: var(--high); }
+.chip.low { background: rgba(0,169,140,.12); border-color: var(--low); color: var(--low); }
+
+.audio-vis { display: flex; align-items: flex-end; gap: 3px; height: 72px; margin-top: 14px; }
+.abar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 3px; transition: height .08s; opacity: .55; }
+
+.mic-status-badge {
+  display: none; align-items: center; gap: 8px;
+  margin-top: 12px; padding: 10px 16px;
+  background: rgba(208,48,85,.08); border: 1.5px solid rgba(208,48,85,.25);
+  border-radius: 12px; font-size: 13px; color: var(--high);
+  font-weight: 600;
+}
+.mic-status-badge.show { display: flex; }
+.mic-status-badge.ok { background: rgba(0,169,140,.08); border-color: rgba(0,169,140,.25); color: var(--low); }
+.mic-rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--high); animation: blink .8s ease-in-out infinite; flex-shrink: 0; }
+.mic-status-badge.ok .mic-rec-dot { background: var(--low); }
+
+.speech-result { margin-top: 14px; padding: 12px 14px; background: var(--s2); border-radius: 12px; font-size: 13px; color: var(--muted); min-height: 44px; line-height: 1.5; border: 1px solid var(--border); }
+.speech-result b { color: var(--text); }
+
+/* Speech probability mini bar chart */
+.speech-prob-bars { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.speech-prob-row { display: flex; align-items: center; gap: 8px; }
+.speech-prob-label { font-size: 11px; color: var(--muted); width: 68px; flex-shrink: 0; text-align: right; }
+.speech-prob-track { flex: 1; height: 8px; background: var(--s3); border-radius: 4px; overflow: hidden; }
+.speech-prob-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width .6s cubic-bezier(.4,0,.2,1); }
+.speech-prob-fill.high-stress { background: var(--high); }
+.speech-prob-fill.low-stress  { background: var(--low); }
+.speech-prob-pct { font-size: 10px; color: var(--muted); width: 34px; text-align: right; flex-shrink: 0; }
+
+.scan-ctrl { display: flex; flex-direction: column; align-items: center; gap: 14px; margin: 8px 0 4px; }
+.scan-status-text { font-size: 13px; color: var(--muted); height: 20px; text-align: center; }
+.scan-big-timer { font-family: 'Outfit', sans-serif; font-size: 52px; font-weight: 800; color: var(--a3); display: none; line-height: 1; letter-spacing: .02em; }
+.scan-big-timer.show { display: block; }
+.scan-big-timer-sub { font-size: 12px; color: var(--muted); display: none; text-align: center; }
+.scan-big-timer-sub.show { display: block; }
+.progress-track { width: 400px; height: 6px; background: var(--s2); border-radius: 3px; display: none; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--a2)); width: 0%; transition: width 1s linear; }
+
+.btn-scan {
+  padding: 17px 60px; border: none; border-radius: 100px;
+  background: linear-gradient(135deg, #00B896 0%, #008F74 100%);
+  color: #fff; font-family: 'Outfit', sans-serif;
+  font-size: 16px; font-weight: 800; cursor: pointer;
+  transition: transform .2s, box-shadow .2s; letter-spacing: .02em;
+  box-shadow: 0 8px 28px rgba(0,150,120, 0.28);
+}
+.btn-scan:hover { transform: scale(1.04); box-shadow: 0 16px 40px rgba(0,169,140,.38); }
+.btn-scan:disabled { opacity: .45; transform: none; cursor: not-allowed; box-shadow: none; }
+
+/* ════ REPORT ════ */
+.report-container { width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 32px 80px; position: relative; z-index: 2; }
+.report-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+.back-btn { display: flex; align-items: center; gap: 8px; background: #FAF7FF; border: 1.5px solid var(--border2); border-radius: 100px; padding: 9px 18px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; transition: border-color .2s, box-shadow .2s; box-shadow: 0 2px 8px rgba(80,40,160,.06); }
+.back-btn:hover { border-color: rgba(124,92,252,.45); box-shadow: 0 4px 16px rgba(124,92,252,.14); }
+.report-ts { font-size: 12px; color: var(--muted); }
+
+.stress-hero { background: #FAF7FF; border: 1.5px solid var(--border); border-radius: 24px; padding: 40px 44px; margin-bottom: 24px; display: flex; align-items: center; gap: 48px; position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(80,40,160,.06); }
+.stress-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), var(--a2), transparent); }
+.stress-gauge { flex-shrink: 0; }
+.gauge-ring { width: 180px; height: 180px; position: relative; }
+.gauge-svg { width: 100%; height: 100%; }
+.gauge-track { fill: none; stroke: var(--s3); stroke-width: 12; stroke-linecap: round; }
+.gauge-fill { fill: none; stroke-width: 12; stroke-linecap: round; stroke-dasharray: 452; stroke-dashoffset: 452; transition: stroke-dashoffset 1.5s cubic-bezier(.4,0,.2,1), stroke .5s; transform-origin: center; transform: rotate(-90deg) scaleX(-1) translateX(-100%); }
+.gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.gauge-pct { font-family: 'Outfit', sans-serif; font-size: 38px; font-weight: 800; }
+.gauge-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+
+.stress-level-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 20px; border-radius: 100px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 16px; text-transform: uppercase; letter-spacing: .08em; }
+.badge-high { background: rgba(208,48,85,.10); border: 1.5px solid rgba(208,48,85,.35); color: var(--high); }
+.badge-med  { background: rgba(196,122,16,.10); border: 1.5px solid rgba(196,122,16,.35); color: var(--med); }
+.badge-low  { background: rgba(0,143,116,.10);  border: 1.5px solid rgba(0,143,116,.35);  color: var(--low); }
+
+.stress-title { font-family: 'Outfit', sans-serif; font-size: 30px; font-weight: 800; margin-bottom: 8px; line-height: 1.1; color: var(--text); }
+.stress-desc  { color: var(--muted); font-size: 14.5px; line-height: 1.65; max-width: 440px; }
+.emotions-detected { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.emo-pill { padding: 7px 16px; border-radius: 100px; font-size: 13px; font-weight: 500; background: var(--s2); border: 1.5px solid var(--border2); color: var(--text); }
+.emo-pill span { font-size: 10px; color: var(--muted); margin-left: 4px; }
+.scan-meta { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.scan-meta-pill { padding: 5px 14px; border-radius: 100px; font-size: 11.5px; background: var(--s2); border: 1px solid var(--border); color: var(--muted); }
+.scan-meta-pill b { color: var(--text); }
+
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.chart-panel { background: #FAF7FF; border: 1.5px solid var(--border); border-radius: var(--r); padding: 24px; box-shadow: 0 4px 20px rgba(80,40,160,.06); }
+.chart-panel h3 { font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 20px; }
+.chart-wrap { height: 230px; position: relative; }
+
+/* ════ RECO ════ */
+.reco-section { margin-bottom: 24px; }
+.section-header { font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 800; margin-bottom: 16px; color: var(--text); }
+.section-header span { background: linear-gradient(90deg, var(--a2), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.reco-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.rtab { padding: 9px 22px; border-radius: 100px; font-size: 13.5px; font-weight: 600; border: 1.5px solid var(--border2); background: #FAF7FF; color: var(--muted); cursor: pointer; transition: all .2s; box-shadow: 0 2px 8px rgba(80,40,160,.05); }
+.rtab:hover { border-color: rgba(124,92,252,.4); color: var(--accent); }
+.rtab.active { background: linear-gradient(135deg, rgba(124,92,252,.14) 0%, rgba(124,92,252,.06) 100%); border-color: var(--accent); color: #3A20A0; box-shadow: 0 4px 16px rgba(124,92,252,.15); }
+
+.reco-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+.reco-card { background: #FAF7FF; border: 1.5px solid var(--border); border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s, border-color .22s; text-decoration: none; color: inherit; display: flex; flex-direction: column; box-shadow: 0 2px 12px rgba(80,40,160,.06); animation: cardIn .5s cubic-bezier(.16,1,.3,1) both; }
+.reco-card:nth-child(1) { animation-delay: .04s; }
+.reco-card:nth-child(2) { animation-delay: .09s; }
+.reco-card:nth-child(3) { animation-delay: .14s; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+.reco-card:hover { transform: translateY(-5px) scale(1.018); border-color: rgba(124,92,252,.3); box-shadow: 0 20px 48px rgba(80,40,160,.14), 0 0 0 1px rgba(124,92,252,.1); }
+
+.reco-thumb { position: relative; height: 158px; overflow: hidden; flex-shrink: 0; }
+.reco-thumb.g1 { background: linear-gradient(135deg,#B090EE 0%,#9060DC 100%); }
+.reco-thumb.g2 { background: linear-gradient(135deg,#70C8EE 0%,#50D8B0 100%); }
+.reco-thumb.g3 { background: linear-gradient(135deg,#F080A8 0%,#D870B8 100%); }
+.reco-thumb.g4 { background: linear-gradient(135deg,#90A870 0%,#708060 100%); }
+.reco-thumb.g5 { background: linear-gradient(135deg,#80A8C8 0%,#90BCD8 100%); }
+.reco-thumb.g6 { background: linear-gradient(135deg,#B080C8 0%,#9870B0 100%); }
+
+.reco-thumb-emoji { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 56px; z-index: 2; filter: drop-shadow(0 4px 16px rgba(0,0,0,.3)); transition: transform .3s cubic-bezier(.16,1,.3,1); }
+.reco-card:hover .reco-thumb-emoji { transform: scale(1.12); }
+.reco-thumb-fade { position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(transparent,rgba(0,0,0,.25)); z-index: 3; }
+.reco-duration { position: absolute; bottom: 8px; right: 8px; background: rgba(255,255,255,.82); color: #2A1A5A; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; z-index: 4; }
+
+.reco-play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0); transition: background .2s; z-index: 5; }
+.reco-card:hover .reco-play-overlay { background: rgba(0,0,0,.12); }
+.reco-play-btn { width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.90); display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(.7); transition: opacity .22s, transform .22s; box-shadow: 0 4px 20px rgba(0,0,0,.25); }
+.reco-play-btn svg { width: 20px; height: 20px; fill: #3A20A0; margin-left: 3px; }
+.reco-card:hover .reco-play-btn { opacity: 1; transform: scale(1); }
+
+.reco-body { padding: 14px 16px 16px; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.reco-tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
+.reco-name { font-size: 14.5px; font-weight: 600; line-height: 1.4; color: var(--text); }
+.reco-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.reco-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.reco-platform { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.reco-platform-icon { width: 16px; height: 16px; border-radius: 4px; background: #FF0000; display: flex; align-items: center; justify-content: center; }
+.reco-platform-icon svg { width: 10px; height: 10px; fill: #fff; }
+.reco-arrow { width: 26px; height: 26px; border-radius: 50%; background: var(--s2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; transition: background .2s, border-color .2s; }
+.reco-card:hover .reco-arrow { background: rgba(124,92,252,.12); border-color: rgba(124,92,252,.3); }
+.reco-arrow svg { width: 11px; height: 11px; color: var(--muted); }
+.reco-card:hover .reco-arrow svg { color: var(--accent); }
+
+.quote-card { background: linear-gradient(135deg,rgba(124,92,252,.08) 0%,rgba(224,90,138,.06) 100%); border: 1.5px solid rgba(124,92,252,.15); border-radius: var(--r); padding: 30px 36px; margin-bottom: 24px; position: relative; overflow: hidden; }
+.quote-icon { font-size: 60px; line-height: 1; color: rgba(124,92,252,.20); font-family: serif; position: absolute; top: 10px; left: 18px; }
+.quote-text { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600; line-height: 1.45; margin-bottom: 10px; padding-left: 8px; position: relative; z-index: 1; color: var(--text); }
+.quote-author { font-size: 13px; color: var(--muted); position: relative; z-index: 1; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--s3); border-radius: 3px; }
+
+@media (max-width: 900px) {
+  .reco-grid { grid-template-columns: repeat(2,1fr); }
+  .panels { grid-template-columns: 1fr; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .stress-hero { flex-direction: column; align-items: flex-start; gap: 24px; padding: 28px; }
+  .scan-container,.report-container { padding: 20px 16px 60px; }
+  .progress-track { width: 90%; }
+}
+@media (max-width: 720px) {
+  .auth-layout { grid-template-columns: 1fr; max-width: 420px; }
+  .auth-brand { display: none; }
+  .auth-form-panel { padding: 40px 28px; }
+}
+@media (max-width: 600px) {
+  .reco-grid { grid-template-columns: 1fr; }
+  .scan-hero h1 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+
+<!-- ══════════════ LOGIN PAGE ══════════════ -->
+<div class="page" id="loginPage">
+  <div class="auth-bg-pattern"></div>
+  <div class="auth-layout" id="loginLayout">
+    <div class="auth-brand">
+      <div class="brand-logo">
+        <div class="brand-icon">🧠</div>
+        <div class="brand-wordmark">Mind<span>Scan</span></div>
+      </div>
+      <div class="brand-hero">
+        <div class="brand-hero-title">Detect stress<br>before it <em>detects you</em></div>
+        <div class="brand-hero-desc">10-second AI-powered analysis of your face and voice to measure real-time stress levels.</div>
+      </div>
+      <div class="brand-features">
+        <div class="brand-feature"><div class="brand-feature-icon">🎥</div><div class="brand-feature-text">Facial expression AI — live emotion tracking</div></div>
+        <div class="brand-feature"><div class="brand-feature-icon">🎤</div><div class="brand-feature-text">Live microphone — real-time voice emotion</div></div>
+        <div class="brand-feature"><div class="brand-feature-icon">📊</div><div class="brand-feature-text">Instant stress score + relief recommendations</div></div>
+      </div>
+    </div>
+    <div class="auth-form-panel">
+      <div class="auth-form-title">Welcome back 👋</div>
+      <div class="auth-form-sub">Sign in to your account to start your AI stress scan.</div>
+      <div class="field">
+        <label class="field-label">Username</label>
+        <div class="input-group">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <input class="auth-input" type="text" id="loginUser" placeholder="e.g. demo" autocomplete="off" maxlength="30" oninput="liveValidateUser()" onblur="blurValidateUser()">
+        </div>
+        <div class="field-msg" id="loginUserMsg"></div>
+      </div>
+      <div class="field">
+        <label class="field-label">Password</label>
+        <div class="input-group">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input class="auth-input" type="password" id="loginPass" placeholder="Your password" autocomplete="off" maxlength="64" oninput="clearLoginErr()">
+          <svg class="input-icon right" id="loginEyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="toggleLoginPw()"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="field-msg" id="loginPassMsg"></div>
+      </div>
+      <button class="btn-auth" id="loginSubmitBtn" onclick="doLogin()">Sign In &amp; Start Scan →</button>
+      <div class="auth-error" id="loginGlobalErr">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="loginGlobalErrText">Invalid credentials. Try again.</span>
+      </div>
+      <div class="lockout-banner" id="loginLockout"></div>
+      <div class="auth-switch">Don't have an account? <a onclick="showSignup()">Create one →</a></div>
+      <div style="text-align:center;margin-top:12px;">
+        <div class="demo-tag">🎯 Demo: username <code>demo</code> · password <code>Demo@123</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SIGNUP PAGE ══════════════ -->
+<div class="page hidden" id="signupPage">
+  <div class="auth-bg-pattern"></div>
+  <div class="auth-layout" id="signupLayout">
+    <div class="auth-brand">
+      <div class="brand-logo">
+        <div class="brand-icon">🧠</div>
+        <div class="brand-wordmark">Mind<span>Scan</span></div>
+      </div>
+      <div class="brand-hero">
+        <div class="brand-hero-title">Join <em>MindScan</em><br>in seconds</div>
+        <div class="brand-hero-desc">Create your free account and get instant access to AI-powered stress analysis.</div>
+      </div>
+      <div class="brand-features">
+        <div class="brand-feature"><div class="brand-feature-icon">🔒</div><div class="brand-feature-text">Your data stays private — stored locally only</div></div>
+        <div class="brand-feature"><div class="brand-feature-icon">⚡</div><div class="brand-feature-text">10-second scan — instant results</div></div>
+        <div class="brand-feature"><div class="brand-feature-icon">🎯</div><div class="brand-feature-text">Tailored relief recommendations just for you</div></div>
+      </div>
+    </div>
+    <div class="auth-form-panel">
+      <div class="auth-form-title">Create your account</div>
+      <div class="auth-form-sub">Fill in the details below to get started.</div>
+      <div class="field">
+        <label class="field-label">Username</label>
+        <div class="input-group">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <input class="auth-input" type="text" id="signupUser" placeholder="Choose a username" autocomplete="off" maxlength="30" oninput="validateSignupUser()" onblur="validateSignupUserBlur()">
+        </div>
+        <div class="field-msg" id="signupUserMsg"></div>
+      </div>
+      <div class="field">
+        <label class="field-label">Password</label>
+        <div class="input-group">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input class="auth-input" type="password" id="signupPass" placeholder="Min 8 chars, mixed case, number, symbol" autocomplete="off" maxlength="64" oninput="validateSignupPass()" onblur="validateSignupPassBlur()">
+          <svg class="input-icon right" id="signupEyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="toggleSignupPw()"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="pw-strength-wrap" id="signupStrengthWrap">
+          <div class="pw-strength-bars">
+            <div class="pw-strength-bar" id="sb1"></div><div class="pw-strength-bar" id="sb2"></div>
+            <div class="pw-strength-bar" id="sb3"></div><div class="pw-strength-bar" id="sb4"></div>
+          </div>
+          <div class="pw-strength-label" id="signupStrengthLabel">Strength: —</div>
+        </div>
+        <div class="field-msg" id="signupPassMsg"></div>
+      </div>
+      <div class="field">
+        <label class="field-label">Confirm Password</label>
+        <div class="input-group">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input class="auth-input" type="password" id="signupConfirm" placeholder="Re-enter your password" autocomplete="off" maxlength="64" oninput="validateSignupConfirm()">
+        </div>
+        <div class="field-msg" id="signupConfirmMsg"></div>
+      </div>
+      <button class="btn-auth" id="signupSubmitBtn" onclick="doSignup()">Create Account →</button>
+      <div class="auth-error" id="signupGlobalErr">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="signupGlobalErrText">Something went wrong.</span>
+      </div>
+      <div class="auth-switch">Already have an account? <a onclick="showLogin()">Sign in →</a></div>
+      <div style="margin-top:14px;background:#EDE8FF;border:1px solid #C8BCFF;border-radius:10px;padding:12px 14px;font-size:12px;color:#3A2A80;line-height:1.7;">
+        <strong style="color:#2A1A60;">Password must have:</strong><br>
+        ✓ Minimum 8 characters &nbsp; ✓ 1 uppercase letter<br>
+        ✓ 1 number &nbsp; ✓ 1 special character (!@#$…)
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SCAN PAGE ══════════════ -->
+<div class="page hidden" id="scanPage">
+  <div class="scan-container">
+    <div class="topbar">
+      <div class="brand-sm">Mind<span>Scan</span></div>
+      <div class="user-chip">
+        <div class="ava" id="scanAva">?</div>
+        <span class="uname" id="scanUser">User</span>
+        <button class="logout-btn" onclick="doLogout()">Sign out</button>
+      </div>
+    </div>
+    <div class="scan-hero">
+      <h1>Real-Time <em>Stress Detection</em></h1>
+      <p>10-second scan — live microphone &amp; face analysed simultaneously for instant results</p>
+    </div>
+    <div class="panels">
+      <!-- FACE -->
+      <div class="panel">
+        <div class="ptitle"><div class="live-dot" id="camDot"></div> Facial Analysis · Live Selfie</div>
+        <div class="vid-wrap" id="vidWrap">
+          <div class="cam-corner tl"></div><div class="cam-corner tr"></div>
+          <div class="cam-corner bl"></div><div class="cam-corner br"></div>
+          <div class="cam-placeholder" id="camPlaceholder">
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+            </svg>
+            <p id="camPlaceholderText">Allow camera access to see your live selfie</p>
+          </div>
+          <video id="videoFeed" autoplay muted playsinline></video>
+          <canvas id="faceCanvas"></canvas>
+          <div class="cam-emotion-pill" id="camEmoPill">
+            <div class="emo-name" id="camEmoName">Detecting…</div>
+            <div class="emo-conf" id="camEmoConf">Confidence: —</div>
+          </div>
+          <div class="cam-live-badge" id="camLiveBadge"><div class="live-dot"></div> LIVE</div>
+          <div class="scan-overlay" id="scanOverlay">
+            <div class="cd-wrap">
+              <svg class="cd-svg" viewBox="0 0 120 120">
+                <circle class="cd-track" cx="60" cy="60" r="55"/>
+                <circle class="cd-ring" id="cdRing" cx="60" cy="60" r="55"/>
+              </svg>
+              <div class="cd-inner">
+                <div class="cd-num" id="cdNum">10</div>
+                <div class="cd-unit">sec</div>
+              </div>
+            </div>
+            <div class="scan-overlay-label">🔍 Scanning Face</div>
+            <div class="scan-overlay-frames" id="scanFrameCount">0 frames captured</div>
+          </div>
+          <div class="no-face-msg" id="noFaceMsg">⚠️ No face detected — centre your face</div>
+          <div class="vid-status">
+            <div class="live-dot" id="camStatusDot" style="animation:none;background:var(--muted)"></div>
+            <span id="camStatus">Starting camera…</span>
+          </div>
+        </div>
+        <div class="chips" id="faceChips">
+          <div class="chip">Angry</div><div class="chip">Disgust</div><div class="chip">Fear</div>
+          <div class="chip">Happy</div><div class="chip">Sad</div><div class="chip">Surprise</div><div class="chip">Neutral</div>
+        </div>
+      </div>
+      <!-- AUDIO -->
+      <div class="panel">
+        <div class="ptitle"><div class="live-dot red"></div> Speech Analysis · Live Microphone</div>
+        <div class="audio-vis" id="audioVis"></div>
+        <div class="mic-status-badge" id="micStatusBadge">
+          <div class="mic-rec-dot"></div>
+          <span id="micStatusText">Recording from microphone…</span>
+        </div>
+        <div class="speech-result" id="speechResult">
+          🎤 Click <strong>Start 10s Analysis</strong> — your live microphone &amp; face will be scanned simultaneously for 10 seconds.
+        </div>
+        <!-- FIX: mini probability bar chart shown after speech detection -->
+        <div class="speech-prob-bars" id="speechProbBars" style="display:none;"></div>
+        <div class="chips" id="speechChips"></div>
+      </div>
+    </div>
+    <div class="scan-ctrl">
+      <div class="scan-status-text" id="scanStatusText">Position your face in frame, then start</div>
+      <div class="scan-big-timer" id="scanBigTimer">10s</div>
+      <div class="scan-big-timer-sub" id="scanBigTimerSub">seconds remaining · keep still</div>
+      <div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
+      <button class="btn-scan" id="scanBtn" onclick="startFullScan()">▶ Start 10s Analysis</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ REPORT PAGE ══════════════ -->
+<div class="page hidden" id="reportPage">
+  <div class="report-container">
+    <div class="report-topbar">
+      <button class="back-btn" onclick="goBack()">← New Scan</button>
+      <div class="report-ts" id="reportTs"></div>
+    </div>
+    <div class="stress-hero">
+      <div class="stress-gauge">
+        <div class="gauge-ring">
+          <svg class="gauge-svg" viewBox="0 0 180 180">
+            <circle class="gauge-track" cx="90" cy="90" r="72"/>
+            <circle class="gauge-fill" id="gaugeFill" cx="90" cy="90" r="72"/>
+          </svg>
+          <div class="gauge-center">
+            <div class="gauge-pct" id="gaugePct">0%</div>
+            <div class="gauge-label">Stress</div>
+          </div>
+        </div>
+      </div>
+      <div class="stress-info">
+        <div class="stress-level-badge" id="stressLevelBadge">——</div>
+        <div class="stress-title" id="stressTitle"></div>
+        <div class="stress-desc"  id="stressDesc"></div>
+        <div class="emotions-detected" id="emotionPills"></div>
+        <div class="scan-meta" id="scanMeta"></div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-panel"><h3>😐 Facial Emotion Distribution</h3><div class="chart-wrap"><canvas id="faceChart"></canvas></div></div>
+      <div class="chart-panel"><h3>🎤 Speech Emotion Distribution</h3><div class="chart-wrap"><canvas id="speechChart"></canvas></div></div>
+    </div>
+    <div class="quote-card">
+      <div class="quote-icon">"</div>
+      <div class="quote-text"  id="quoteText"></div>
+      <div class="quote-author" id="quoteAuthor"></div>
+    </div>
+    <div class="reco-section">
+      <div class="section-header">Instant Relief <span>Recommendations</span></div>
+      <div class="reco-tabs">
+        <button class="rtab active" onclick="showTab('exercise')">🏃 Exercise</button>
+        <button class="rtab" onclick="showTab('meditation')">🧘 Meditation</button>
+        <button class="rtab" onclick="showTab('music')">🎵 Music</button>
+      </div>
+      <div class="reco-grid" id="recoGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ JAVASCRIPT ══════════════ -->
+<script>
+const API = 'http://127.0.0.1:5000';
+const SCAN_DURATION = 10;
+
+// Fallback label order — real order comes from backend response
+const SPEECH_FB = ['Neutral','Calm','Happy','Sad','Angry','Fearful','Disgust','Surprised'];
+
+// ═══════════════════════════════
+// DATA
+// ═══════════════════════════════
+const QUOTES = {
+  high: [
+    { text: "You don't have to control your thoughts. You just have to stop letting them control you.", author: "— Dan Millman" },
+    { text: "Almost everything will work again if you unplug it for a few minutes — including you.", author: "— Anne Lamott" },
+    { text: "You are braver than you believe, stronger than you seem, and smarter than you think.", author: "— A.A. Milne" }
+  ],
+  medium: [
+    { text: "Within you, there is a stillness and sanctuary to which you can retreat at any time.", author: "— Hermann Hesse" },
+    { text: "Nothing is permanent. Don't stress yourself too much — no matter how bad the situation is, it will change.", author: "— Anonymous" },
+    { text: "Take rest; a field that has rested gives a bountiful crop.", author: "— Ovid" }
+  ],
+  low: [
+    { text: "Happiness is not something ready-made. It comes from your own actions.", author: "— Dalai Lama" },
+    { text: "Inhale confidence, exhale doubt.", author: "— Anonymous" },
+    { text: "Peace begins with a smile.", author: "— Mother Teresa" }
+  ]
+};
+
+const RECO = {
+  exercise: {
+    high: [
+      { emoji:'🏃', name:'5-Min Stress-Buster Cardio', sub:'Jump jacks, high knees, burpees', url:'https://www.youtube.com/results?search_query=5+minute+stress+relief+cardio+workout', tag:'YouTube · 5 min', dur:'5:00', g:'g1' },
+      { emoji:'🥊', name:'Punch Out Your Stress', sub:'Shadow boxing for instant release', url:'https://www.youtube.com/results?search_query=shadow+boxing+stress+relief+workout', tag:'YouTube · 10 min', dur:'10:00', g:'g2' },
+      { emoji:'🧘', name:'Yoga for Anxiety', sub:'Quick stretches for the nervous system', url:'https://www.youtube.com/results?search_query=yoga+for+anxiety+and+stress+relief', tag:'YouTube · 8 min', dur:'8:00', g:'g3' }
+    ],
+    medium: [
+      { emoji:'🚶', name:'Mindful Walk Meditation', sub:'Walking + breathing to reset', url:'https://www.youtube.com/results?search_query=mindful+walking+meditation', tag:'YouTube · 10 min', dur:'10:00', g:'g4' },
+      { emoji:'💃', name:'Dance Break', sub:'Freestyle movement to lift mood', url:'https://www.youtube.com/results?search_query=dance+workout+mood+boost', tag:'YouTube · 5 min', dur:'5:00', g:'g5' },
+      { emoji:'🤸', name:'Desk Stretches', sub:'Release tension anywhere', url:'https://www.youtube.com/results?search_query=office+desk+stretches+stress+relief', tag:'YouTube · 5 min', dur:'5:00', g:'g6' }
+    ],
+    low: [
+      { emoji:'🌿', name:'Morning Flow Yoga', sub:'Energising start to your day', url:'https://www.youtube.com/results?search_query=morning+yoga+flow+energise', tag:'YouTube · 15 min', dur:'15:00', g:'g1' },
+      { emoji:'🏊', name:'Progressive Body Scan', sub:'Full-body relaxation exercise', url:'https://www.youtube.com/results?search_query=progressive+muscle+relaxation', tag:'YouTube · 10 min', dur:'10:00', g:'g2' },
+      { emoji:'🌬️', name:'Box Breathing Workout', sub:'4-4-4-4 breathing for focus', url:'https://www.youtube.com/results?search_query=box+breathing+technique', tag:'YouTube · 5 min', dur:'5:00', g:'g3' }
+    ]
+  },
+  meditation: {
+    high: [
+      { emoji:'🔥', name:'Emergency Calm', sub:'3-minute panic-reset meditation', url:'https://www.youtube.com/results?search_query=3+minute+emergency+calm+meditation', tag:'YouTube · 3 min', dur:'3:00', g:'g3' },
+      { emoji:'🌊', name:'Ocean Waves Breathing', sub:'Deep calming breath work', url:'https://www.youtube.com/results?search_query=ocean+waves+deep+breathing+meditation', tag:'YouTube · 7 min', dur:'7:00', g:'g5' },
+      { emoji:'🌙', name:'Body Scan for Stress', sub:'Progressive relaxation technique', url:'https://www.youtube.com/results?search_query=body+scan+meditation+stress+relief', tag:'YouTube · 10 min', dur:'10:00', g:'g2' }
+    ],
+    medium: [
+      { emoji:'☁️', name:'Mindfulness for Focus', sub:'Bring attention back to work', url:'https://www.youtube.com/results?search_query=mindfulness+meditation+for+focus+work', tag:'YouTube · 8 min', dur:'8:00', g:'g4' },
+      { emoji:'🎋', name:'Guided Visualisation', sub:'Happy place mental reset', url:'https://www.youtube.com/results?search_query=guided+visualization+happy+place+meditation', tag:'YouTube · 10 min', dur:'10:00', g:'g1' },
+      { emoji:'💜', name:'Loving-Kindness Meditation', sub:'Compassion to ease anxiety', url:'https://www.youtube.com/results?search_query=loving+kindness+meditation+anxiety', tag:'YouTube · 12 min', dur:'12:00', g:'g6' }
+    ],
+    low: [
+      { emoji:'☀️', name:'Morning Gratitude', sub:'Positive mindset for the day', url:'https://www.youtube.com/results?search_query=morning+gratitude+meditation', tag:'YouTube · 5 min', dur:'5:00', g:'g2' },
+      { emoji:'🍃', name:'Breathing for Clarity', sub:'4-7-8 breathing technique', url:'https://www.youtube.com/results?search_query=4-7-8+breathing+technique', tag:'YouTube · 5 min', dur:'5:00', g:'g5' },
+      { emoji:'🌸', name:'Zen Flow Meditation', sub:'Calm and centred state', url:'https://www.youtube.com/results?search_query=zen+flow+meditation', tag:'YouTube · 10 min', dur:'10:00', g:'g3' }
+    ]
+  },
+  music: {
+    high: [
+      { emoji:'🎵', name:'Calming Lofi Beats', sub:'Study/relax beats to de-stress', url:'https://www.youtube.com/results?search_query=lofi+hip+hop+study+beats+chill', tag:'YouTube Music', dur:'1:00:00', g:'g6' },
+      { emoji:'🎹', name:'Peaceful Piano', sub:'Soft instrumental to soothe', url:'https://www.youtube.com/results?search_query=peaceful+piano+music+stress+relief', tag:'YouTube Music', dur:'45:00', g:'g1' },
+      { emoji:'🌿', name:'Nature Soundscapes', sub:'Rain + forest sounds to relax', url:'https://www.youtube.com/results?search_query=rain+sounds+nature+soundscape+relax', tag:'YouTube · Ambient', dur:'3:00:00', g:'g4' }
+    ],
+    medium: [
+      { emoji:'🎸', name:'Acoustic Feel-Good Mix', sub:'Uplifting acoustic playlist', url:'https://www.youtube.com/results?search_query=feel+good+acoustic+playlist', tag:'YouTube Music', dur:'30:00', g:'g2' },
+      { emoji:'🎺', name:'Jazz for Focus', sub:'Smooth jazz to stay productive', url:'https://www.youtube.com/results?search_query=smooth+jazz+focus+work+playlist', tag:'YouTube Music', dur:'1:00:00', g:'g5' },
+      { emoji:'🌊', name:'432 Hz Healing Tones', sub:'Frequency music for calm', url:'https://www.youtube.com/results?search_query=432+hz+healing+music', tag:'YouTube · Binaural', dur:'2:00:00', g:'g3' }
+    ],
+    low: [
+      { emoji:'🎶', name:'Happy Indie Playlist', sub:'Positive energy boosters', url:'https://www.youtube.com/results?search_query=happy+indie+pop+playlist+upbeat', tag:'YouTube Music', dur:'45:00', g:'g4' },
+      { emoji:'🥁', name:'Upbeat Pop Energy', sub:'Dance to boost your mood', url:'https://www.youtube.com/results?search_query=upbeat+pop+playlist+mood+boost', tag:'YouTube Music', dur:'30:00', g:'g1' },
+      { emoji:'🎻', name:'Classical Focus Flow', sub:'Mozart effect for productivity', url:'https://www.youtube.com/results?search_query=classical+music+focus+productivity+mozart', tag:'YouTube Music', dur:'1:30:00', g:'g6' }
+    ]
+  }
+};
+
+const STRESS_COPY = {
+  high:   { title: 'High Stress Detected',    desc: 'Your facial expressions and voice patterns indicate significant stress. Take a short break — the recommendations below will help immediately.' },
+  medium: { title: 'Moderate Stress Detected', desc: "You're carrying some tension. A few minutes of mindful activity can reset your nervous system and bring you back to a focused state." },
+  low:    { title: "You're Doing Great!",       desc: "Your stress levels are low and you're in a great emotional state. Keep up your positive routines!" }
+};
+
+// ═══════════════════════════════
+// STATE
+// ═══════════════════════════════
+let currentUser     = '';
+let stream          = null;
+let faceResult      = null;
+let speechResult    = null;
+let faceChartInst   = null;
+let speechChartInst = null;
+let activeTab       = 'exercise';
+let audioCtx        = null;
+let analyser        = null;
+let animFrame       = null;
+let liveFaceLoop    = null;
+let lastFaceResult  = null;
+let noFaceCount     = 0;
+let scanActive      = false;
+
+let registeredUsers = { demo:'Demo@123', kavya:'Kavya@123', jeevani:'Jeevani@123', sushma:'Sushma@123' };
+let failedAttempts  = 0;
+let lockoutUntil    = 0;
+const MAX_ATTEMPTS  = 5;
+const LOCKOUT_MS    = 30000;
+
+// ═══════════════════════════════
+// PAGE NAV
+// ═══════════════════════════════
+function showPage(id) {
+  ['loginPage','signupPage','scanPage','reportPage'].forEach(p =>
+    document.getElementById(p).classList.toggle('hidden', p !== id)
+  );
+}
+function showSignup() { showPage('signupPage'); }
+function showLogin()  { showPage('loginPage'); }
+
+function goBack() {
+  showPage('scanPage');
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = false;
+  btn.textContent = '▶ Start 10s Analysis';
+  document.getElementById('scanStatusText').textContent = 'Position your face in frame, then start';
+  document.getElementById('progressTrack').style.display = 'none';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('scanBigTimer').className = 'scan-big-timer';
+  document.getElementById('scanBigTimerSub').className = 'scan-big-timer-sub';
+  document.getElementById('micStatusBadge').className = 'mic-status-badge';
+  document.getElementById('scanOverlay').className = 'scan-overlay';
+  document.getElementById('speechProbBars').style.display = 'none';
+  faceResult = null; speechResult = null;
+}
+
+// ═══════════════════════════════
+// AUTH HELPERS
+// ═══════════════════════════════
+function setMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = 'field-msg ' + type;
+}
+function clearMsg(id) {
+  const el = document.getElementById(id);
+  el.textContent = ''; el.className = 'field-msg';
+}
+function setInputState(id, state) {
+  const el = document.getElementById(id);
+  el.classList.remove('is-valid','is-invalid');
+  if (state === 'valid')   el.classList.add('is-valid');
+  if (state === 'invalid') el.classList.add('is-invalid');
+}
+function shakePanel(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+  setTimeout(() => el.classList.remove('shake'), 500);
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ═══════════════════════════════
+// LOGIN VALIDATORS
+// ═══════════════════════════════
+function liveValidateUser() {
+  const v = document.getElementById('loginUser').value.trim();
+  if (!v) { clearMsg('loginUserMsg'); setInputState('loginUser',''); return; }
+  if (v.length < 3) { setMsg('loginUserMsg','Min 3 characters','error'); setInputState('loginUser','invalid'); }
+  else if (!/^[a-zA-Z0-9_]+$/.test(v)) { setMsg('loginUserMsg','Letters, numbers, underscores only','error'); setInputState('loginUser','invalid'); }
+  else { clearMsg('loginUserMsg'); setInputState('loginUser','valid'); }
+}
+function blurValidateUser() {
+  const v = document.getElementById('loginUser').value.trim();
+  if (!v) { setMsg('loginUserMsg','Username is required','error'); setInputState('loginUser','invalid'); return; }
+  liveValidateUser();
+}
+function clearLoginErr() { document.getElementById('loginGlobalErr').className = 'auth-error'; }
+
+function toggleLoginPw() {
+  const inp = document.getElementById('loginPass');
+  const icon = document.getElementById('loginEyeIcon');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  icon.innerHTML = inp.type === 'password'
+    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+}
+
+function isLockedOut() { return Date.now() < lockoutUntil; }
+
+// ═══════════════════════════════
+// LOGIN SUBMIT
+// ═══════════════════════════════
+async function doLogin() {
+  const btn = document.getElementById('loginSubmitBtn');
+  const u   = document.getElementById('loginUser').value.trim().toLowerCase();
+  const p   = document.getElementById('loginPass').value;
+  document.getElementById('loginGlobalErr').className = 'auth-error';
+
+  if (isLockedOut()) {
+    const sec = Math.ceil((lockoutUntil - Date.now()) / 1000);
+    document.getElementById('loginLockout').textContent = '⛔ Too many attempts. Try again in ' + sec + 's.';
+    document.getElementById('loginLockout').className = 'lockout-banner show';
+    shakePanel('loginLayout'); return;
+  }
+  if (!u) { setMsg('loginUserMsg','Username is required','error'); setInputState('loginUser','invalid'); shakePanel('loginLayout'); return; }
+  if (!p) { setMsg('loginPassMsg','Password is required','error'); setInputState('loginPass','invalid'); shakePanel('loginLayout'); return; }
+
+  btn.disabled = true; btn.textContent = 'Verifying…';
+
+  let ok = false;
+  try {
+    const r = await fetch(API + '/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p }),
+      credentials: 'include',
+      signal: AbortSignal.timeout(4000)
+    });
+    const d = await r.json();
+    if (d.success) ok = true;
+    else handleLoginFail();
+  } catch(e) {
+    if (registeredUsers[u] && registeredUsers[u] === p) ok = true;
+    else handleLoginFail();
+  }
+
+  if (ok) {
+    failedAttempts = 0; lockoutUntil = 0;
+    document.getElementById('loginLockout').className = 'lockout-banner';
+    currentUser = u;
+    document.getElementById('scanAva').textContent  = currentUser[0].toUpperCase();
+    document.getElementById('scanUser').textContent = currentUser;
+    btn.textContent = '✓ Welcome back!';
+    await sleep(380);
+    showPage('scanPage');
+    initCamera(); initAudioBars(); renderSpeechChips(SPEECH_FB);
+  }
+  btn.disabled = false; btn.textContent = 'Sign In & Start Scan →';
+}
+
+function handleLoginFail() {
+  failedAttempts++;
+  if (failedAttempts >= MAX_ATTEMPTS) {
+    lockoutUntil = Date.now() + LOCKOUT_MS;
+    document.getElementById('loginLockout').textContent = '⛔ Account locked for 30 seconds.';
+    document.getElementById('loginLockout').className = 'lockout-banner show';
+    setTimeout(() => { document.getElementById('loginLockout').className = 'lockout-banner'; failedAttempts = 0; }, LOCKOUT_MS);
+  }
+  const rem = MAX_ATTEMPTS - failedAttempts;
+  document.getElementById('loginGlobalErrText').textContent =
+    failedAttempts >= MAX_ATTEMPTS ? 'Account locked. Try again in 30s.' :
+    'Incorrect username or password.' + (rem <= 2 ? ' (' + rem + ' attempt' + (rem !== 1 ? 's' : '') + ' left)' : '');
+  document.getElementById('loginGlobalErr').className = 'auth-error show';
+  shakePanel('loginLayout');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (!document.getElementById('loginPage').classList.contains('hidden'))  doLogin();
+  if (!document.getElementById('signupPage').classList.contains('hidden')) doSignup();
+});
+
+// ═══════════════════════════════
+// SIGNUP VALIDATORS
+// ═══════════════════════════════
+function getPasswordStrength(pw) {
+  let s = 0;
+  if (pw.length >= 8) s++;
+  if (/[A-Z]/.test(pw)) s++;
+  if (/[0-9]/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  return s;
+}
+function updateStrengthBars(strength) {
+  const colors = ['#D03055','#C47A10','#6A9020','#008F74'];
+  const labels = ['Weak','Fair','Good','Strong'];
+  ['sb1','sb2','sb3','sb4'].forEach((id, i) => {
+    document.getElementById(id).style.background = i < strength ? colors[strength-1] : '#D8CCEE';
+  });
+  const lbl = document.getElementById('signupStrengthLabel');
+  if (!strength) { lbl.textContent = 'Strength: —'; return; }
+  lbl.textContent = 'Strength: ' + labels[strength-1];
+  lbl.style.color = colors[strength-1];
+}
+
+function validateSignupUser(showOk = false) {
+  const v = document.getElementById('signupUser').value.trim();
+  if (!v) { clearMsg('signupUserMsg'); setInputState('signupUser',''); return false; }
+  if (v.length < 3) { setMsg('signupUserMsg','Min 3 characters','error'); setInputState('signupUser','invalid'); return false; }
+  if (!/^[a-zA-Z0-9_]+$/.test(v)) { setMsg('signupUserMsg','Letters, numbers, underscores only','error'); setInputState('signupUser','invalid'); return false; }
+  if (registeredUsers[v.toLowerCase()]) { setMsg('signupUserMsg','Username already taken','error'); setInputState('signupUser','invalid'); return false; }
+  if (showOk) { setMsg('signupUserMsg','✓ Username available','success'); setInputState('signupUser','valid'); }
+  else { clearMsg('signupUserMsg'); setInputState('signupUser','valid'); }
+  return true;
+}
+function validateSignupUserBlur() { validateSignupUser(true); }
+
+function validateSignupPass(showOk = false) {
+  const v = document.getElementById('signupPass').value;
+  document.getElementById('signupStrengthWrap').className = 'pw-strength-wrap show';
+  updateStrengthBars(getPasswordStrength(v));
+  if (!v) { clearMsg('signupPassMsg'); setInputState('signupPass',''); return false; }
+  if (v.length < 8) { setMsg('signupPassMsg','Min 8 characters required','error'); setInputState('signupPass','invalid'); return false; }
+  if (!/[A-Z]/.test(v)) { setMsg('signupPassMsg','Add at least 1 uppercase letter','error'); setInputState('signupPass','invalid'); return false; }
+  if (!/[0-9]/.test(v)) { setMsg('signupPassMsg','Add at least 1 number','error'); setInputState('signupPass','invalid'); return false; }
+  if (!/[^A-Za-z0-9]/.test(v)) { setMsg('signupPassMsg','Add at least 1 special character (!@#$…)','error'); setInputState('signupPass','invalid'); return false; }
+  if (showOk) { setMsg('signupPassMsg','✓ Strong password','success'); setInputState('signupPass','valid'); }
+  else { clearMsg('signupPassMsg'); setInputState('signupPass','valid'); }
+  return true;
+}
+function validateSignupPassBlur() { validateSignupPass(true); }
+
+function validateSignupConfirm() {
+  const pw = document.getElementById('signupPass').value;
+  const cf = document.getElementById('signupConfirm').value;
+  if (!cf) { clearMsg('signupConfirmMsg'); setInputState('signupConfirm',''); return false; }
+  if (pw !== cf) { setMsg('signupConfirmMsg','Passwords do not match','error'); setInputState('signupConfirm','invalid'); return false; }
+  setMsg('signupConfirmMsg','✓ Passwords match','success'); setInputState('signupConfirm','valid');
+  return true;
+}
+
+function toggleSignupPw() {
+  const inp  = document.getElementById('signupPass');
+  const icon = document.getElementById('signupEyeIcon');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  icon.innerHTML = inp.type === 'password'
+    ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+}
+
+// ═══════════════════════════════
+// SIGNUP SUBMIT
+// ═══════════════════════════════
+async function doSignup() {
+  const btn = document.getElementById('signupSubmitBtn');
+  const u   = document.getElementById('signupUser').value.trim().toLowerCase();
+  const p   = document.getElementById('signupPass').value;
+  const c   = document.getElementById('signupConfirm').value;
+  document.getElementById('signupGlobalErr').className = 'auth-error';
+
+  if (!u) { setMsg('signupUserMsg','Username is required','error'); setInputState('signupUser','invalid'); shakePanel('signupLayout'); return; }
+  if (!validateSignupUser())    { shakePanel('signupLayout'); return; }
+  if (!validateSignupPass())    { shakePanel('signupLayout'); return; }
+  if (!c) { setMsg('signupConfirmMsg','Please confirm your password','error'); setInputState('signupConfirm','invalid'); shakePanel('signupLayout'); return; }
+  if (!validateSignupConfirm()) { shakePanel('signupLayout'); return; }
+
+  btn.disabled = true; btn.textContent = 'Creating account…';
+
+  let ok = false;
+  try {
+    const r = await fetch(API + '/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p }),
+      credentials: 'include',
+      signal: AbortSignal.timeout(4000)
+    });
+    const d = await r.json();
+    if (d.success) ok = true;
+    else { document.getElementById('signupGlobalErrText').textContent = d.message || 'Username already taken'; document.getElementById('signupGlobalErr').className = 'auth-error show'; }
+  } catch(e) {
+    registeredUsers[u] = p; ok = true;
+  }
+
+  if (ok) {
+    currentUser = u;
+    document.getElementById('scanAva').textContent  = currentUser[0].toUpperCase();
+    document.getElementById('scanUser').textContent = currentUser;
+    btn.textContent = '✓ Account created!';
+    await sleep(380);
+    showPage('scanPage');
+    initCamera(); initAudioBars(); renderSpeechChips(SPEECH_FB);
+    ['signupUser','signupPass','signupConfirm'].forEach(id => {
+      const el = document.getElementById(id);
+      el.value = ''; el.classList.remove('is-valid','is-invalid');
+    });
+    document.getElementById('signupStrengthWrap').className = 'pw-strength-wrap';
+  }
+  btn.disabled = false; btn.textContent = 'Create Account →';
+}
+
+// ═══════════════════════════════
+// LOGOUT
+// ═══════════════════════════════
+async function doLogout() {
+  try { await fetch(API + '/api/logout', { method:'POST', credentials:'include' }); } catch(e) {}
+  stopAll();
+  ['loginUser','loginPass'].forEach(id => {
+    document.getElementById(id).value = '';
+    document.getElementById(id).classList.remove('is-valid','is-invalid');
+  });
+  clearMsg('loginUserMsg'); clearMsg('loginPassMsg');
+  document.getElementById('loginGlobalErr').className = 'auth-error';
+  showPage('loginPage');
+}
+
+// ═══════════════════════════════
+// SPEECH CHIP RENDERER
+// ═══════════════════════════════
+function renderSpeechChips(labels) {
+  const container = document.getElementById('speechChips');
+  container.innerHTML = labels.map(l =>
+    `<div class="chip">${l.charAt(0).toUpperCase() + l.slice(1)}</div>`
+  ).join('');
+}
+
+// ═══════════════════════════════
+// SPEECH PROBABILITY MINI BARS  ← NEW
+// Shows actual per-emotion probability bars after detection
+// ═══════════════════════════════
+function renderSpeechProbBars(labels, probs) {
+  const container = document.getElementById('speechProbBars');
+  if (!labels || !probs || labels.length !== probs.length) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const HIGH_EMO = ['angry','fearful','disgust','sad'];
+  const LOW_EMO  = ['calm','happy','neutral'];
+
+  // Sort by probability descending for readability
+  const pairs = labels.map((l, i) => ({ label: l, prob: probs[i] * 100 }))
+                       .sort((a, b) => b.prob - a.prob);
+
+  container.innerHTML = pairs.map(({ label, prob }) => {
+    const emoLow = label.toLowerCase();
+    const fillClass = HIGH_EMO.includes(emoLow) ? 'high-stress'
+                    : LOW_EMO.includes(emoLow)  ? 'low-stress' : '';
+    const cap = label.charAt(0).toUpperCase() + label.slice(1);
+    return `
+      <div class="speech-prob-row">
+        <div class="speech-prob-label">${cap}</div>
+        <div class="speech-prob-track">
+          <div class="speech-prob-fill ${fillClass}" style="width:${Math.min(prob, 100).toFixed(1)}%"></div>
+        </div>
+        <div class="speech-prob-pct">${prob.toFixed(1)}%</div>
+      </div>`;
+  }).join('');
+
+  container.style.display = 'flex';
+}
+
+// ═══════════════════════════════
+// CAMERA
+// ═══════════════════════════════
+async function initCamera() {
+  const placeholder = document.getElementById('camPlaceholder');
+  const pText       = document.getElementById('camPlaceholderText');
+  const video       = document.getElementById('videoFeed');
+  const canvas      = document.getElementById('faceCanvas');
+  const status      = document.getElementById('camStatus');
+  const dot         = document.getElementById('camStatusDot');
+  const badge       = document.getElementById('camLiveBadge');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:{ideal:640}, height:{ideal:480} }, audio: false });
+    video.srcObject = stream;
+    await new Promise(resolve => { video.onloadedmetadata = () => { video.play(); resolve(); }; });
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 480;
+    placeholder.style.display = 'none';
+    video.style.display  = 'block';
+    canvas.style.display = 'block';
+    badge.style.display  = 'flex';
+    status.textContent = 'Live · Mirror View';
+    dot.style.background  = 'var(--a3)';
+    dot.style.boxShadow   = '0 0 6px var(--a3)';
+    dot.style.animation   = 'blink 1.4s ease-in-out infinite';
+    startLiveFaceDetection();
+  } catch(e) {
+    pText.textContent   = 'Camera access denied — allow in browser settings';
+    status.textContent  = 'No camera access';
+    dot.style.background = 'var(--high)';
+  }
+}
+
+function stopAll() {
+  if (liveFaceLoop)  { clearInterval(liveFaceLoop); liveFaceLoop = null; }
+  if (stream)        { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  const canvas = document.getElementById('faceCanvas');
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  if (audioCtx)  { audioCtx.close().catch(() => {}); audioCtx = null; }
+  const video = document.getElementById('videoFeed');
+  if (video)  video.style.display  = 'none';
+  if (canvas) canvas.style.display = 'none';
+  document.getElementById('camPlaceholder').style.display = 'flex';
+  document.getElementById('camLiveBadge').style.display   = 'none';
+  document.getElementById('camEmoPill').style.display     = 'none';
+  scanActive = false;
+}
+
+function captureFrame() {
+  const video = document.getElementById('videoFeed');
+  const c = document.createElement('canvas');
+  c.width  = video.videoWidth  || 640;
+  c.height = video.videoHeight || 480;
+  c.getContext('2d').drawImage(video, 0, 0);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+
+function drawFaceBox(result) {
+  const canvas = document.getElementById('faceCanvas');
+  const ctx    = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!result || !result.face_detected || !result.face_box) return;
+
+  const [x, y, w, h] = result.face_box;
+  const emotion = result.emotion || '';
+  const HIGH    = ['Angry','Fear','Disgust'];
+  const LOW     = ['Happy','Neutral','Calm'];
+  const col     = HIGH.includes(emotion) ? '#D03055' : LOW.includes(emotion) ? '#008F74' : '#C47A10';
+
+  ctx.shadowColor = col; ctx.shadowBlur = 16;
+  ctx.strokeStyle = col; ctx.lineWidth  = 2.5;
+  ctx.beginPath(); roundRect(ctx, x, y, w, h, 10); ctx.stroke();
+  ctx.shadowBlur = 0;
+  drawCorners(ctx, x, y, w, h, col, 18, 3);
+
+  const label = emotion + '  ' + result.confidence.toFixed(1) + '%';
+  ctx.font = '700 13px Outfit,sans-serif';
+  const tw  = ctx.measureText(label).width + 20;
+  const lh  = 24;
+  const ly  = y > lh + 4 ? y - lh - 4 : y + h + 4;
+  ctx.fillStyle = col; ctx.beginPath(); roundRect(ctx, x, ly, tw, lh, 6); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + 10, ly + lh / 2);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function drawCorners(ctx, x, y, w, h, color, size, lw) {
+  ctx.strokeStyle = color; ctx.lineWidth = lw + 1;
+  [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,sx,sy]) => {
+    ctx.beginPath();
+    ctx.moveTo(cx+sx*size, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy+sy*size);
+    ctx.stroke();
+  });
+}
+
+function startLiveFaceDetection() {
+  if (liveFaceLoop) clearInterval(liveFaceLoop);
+  runLiveDetect();
+  liveFaceLoop = setInterval(runLiveDetect, 1000);
+}
+
+async function runLiveDetect() {
+  if (!stream || scanActive) return;
+  const video = document.getElementById('videoFeed');
+  if (!video || video.readyState < 2) return;
+
+  const noFaceEl = document.getElementById('noFaceMsg');
+  const pill     = document.getElementById('camEmoPill');
+  const emoName  = document.getElementById('camEmoName');
+  const emoConf  = document.getElementById('camEmoConf');
+  const chips    = document.querySelectorAll('#faceChips .chip');
+  const FACIAL   = ['Angry','Disgust','Fear','Happy','Sad','Surprise','Neutral'];
+
+  try {
+    const img = captureFrame();
+    const r = await fetch(API + '/api/predict/face', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: img }),
+      credentials: 'include'
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+
+    if (d.face_detected) {
+      noFaceCount = 0; noFaceEl.style.display = 'none';
+      lastFaceResult = d; drawFaceBox(d);
+      pill.style.display = 'block';
+      emoName.textContent = d.emotion;
+      emoConf.textContent = 'Confidence: ' + d.confidence + '%';
+      const HIGH = ['Angry','Fear','Disgust'], LOW = ['Happy','Neutral'];
+      if (HIGH.includes(d.emotion))      { emoName.style.color = 'var(--high)'; pill.style.borderColor = 'rgba(208,48,85,.35)'; }
+      else if (LOW.includes(d.emotion))  { emoName.style.color = 'var(--low)';  pill.style.borderColor = 'rgba(0,143,116,.35)'; }
+      else                               { emoName.style.color = 'var(--med)';  pill.style.borderColor = 'rgba(196,122,16,.35)'; }
+      chips.forEach((c,i) => {
+        c.classList.remove('on','high','low');
+        if (FACIAL[i] === d.emotion) {
+          if (HIGH.includes(d.emotion)) c.classList.add('high');
+          else if (LOW.includes(d.emotion)) c.classList.add('low');
+          else c.classList.add('on');
+        }
+      });
+    } else {
+      noFaceCount++;
+      document.getElementById('faceCanvas').getContext('2d').clearRect(0,0,640,480);
+      pill.style.display = 'none';
+      chips.forEach(c => c.classList.remove('on','high','low'));
+      if (noFaceCount >= 2) noFaceEl.style.display = 'block';
+    }
+  } catch(e) {}
+}
+
+// ═══════════════════════════════
+// AUDIO BARS
+// ═══════════════════════════════
+const BAR_COUNT = 32;
+function initAudioBars() {
+  const vis = document.getElementById('audioVis'); vis.innerHTML = '';
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const b = document.createElement('div'); b.className = 'abar'; b.id = 'ab' + i;
+    vis.appendChild(b);
+  }
+}
+
+function startAudioVisualiser(micStream) {
+  if (audioCtx) { try { audioCtx.close(); } catch(e) {} }
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser  = audioCtx.createAnalyser();
+  analyser.fftSize = 64;
+  audioCtx.createMediaStreamSource(micStream).connect(analyser);
+
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  const tick = () => {
+    analyser.getByteFrequencyData(buf);
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const v = buf[Math.floor(i * buf.length / BAR_COUNT)] / 255;
+      const b = document.getElementById('ab' + i);
+      if (b) b.style.height = (4 + v * 68) + 'px';
+    }
+    animFrame = requestAnimationFrame(tick);
+  };
+  tick();
+  return audioCtx;
+}
+
+// ═══════════════════════════════
+// MAIN SCAN
+// ═══════════════════════════════
+async function startFullScan() {
+  const btn            = document.getElementById('scanBtn');
+  const statusText     = document.getElementById('scanStatusText');
+  const progressTrack  = document.getElementById('progressTrack');
+  const progressFill   = document.getElementById('progressFill');
+  const bigTimer       = document.getElementById('scanBigTimer');
+  const bigTimerSub    = document.getElementById('scanBigTimerSub');
+  const overlay        = document.getElementById('scanOverlay');
+  const cdNum          = document.getElementById('cdNum');
+  const cdRing         = document.getElementById('cdRing');
+  const frameCountEl   = document.getElementById('scanFrameCount');
+  const micBadge       = document.getElementById('micStatusBadge');
+  const micText        = document.getElementById('micStatusText');
+
+  btn.disabled = true;
+  scanActive   = true;
+
+  // Reset prob bars
+  document.getElementById('speechProbBars').style.display = 'none';
+
+  progressTrack.style.display = 'block';
+  progressFill.style.transition = 'none';
+  progressFill.style.width = '0%';
+  bigTimer.className    = 'scan-big-timer show';
+  bigTimerSub.className = 'scan-big-timer-sub show';
+  overlay.className     = 'scan-overlay active';
+
+  statusText.textContent = '🎙️ Recording live mic + scanning face…';
+
+  let audioBlob   = null;
+  let micStream   = null;
+  let mediaRec    = null;
+
+  let resolveAudio;
+  const audioReady = new Promise(res => { resolveAudio = res; });
+
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    startAudioVisualiser(micStream);
+
+    micBadge.className  = 'mic-status-badge show';
+    micText.textContent = `Recording live mic for ${SCAN_DURATION}s… Speak naturally!`;
+
+    document.getElementById('speechResult').innerHTML =
+      '🔴 <b>Recording your live voice…</b> Speak naturally for 10 seconds. Try saying how you feel.';
+    document.getElementById('speechResult').style.borderColor = 'rgba(208,48,85,.35)';
+
+    const chunks = [];
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+
+    mediaRec = mimeType ? new MediaRecorder(micStream, { mimeType }) : new MediaRecorder(micStream);
+    mediaRec.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+    mediaRec.onstop = () => {
+      const usedType = mediaRec.mimeType || 'audio/webm';
+      audioBlob = new Blob(chunks, { type: usedType });
+      console.log(`[audio] Recorded ${audioBlob.size} bytes, type=${usedType}`);
+      resolveAudio(audioBlob);
+    };
+    // Use timeslice to get data more reliably
+    mediaRec.start(1000);
+
+    setTimeout(() => {
+      if (mediaRec && mediaRec.state !== 'inactive') mediaRec.stop();
+      micStream.getTracks().forEach(t => t.stop());
+    }, SCAN_DURATION * 1000);
+
+  } catch(micErr) {
+    console.warn('Microphone access denied or unavailable:', micErr);
+    micBadge.className  = 'mic-status-badge show';
+    micText.textContent = '⚠️ Microphone unavailable — face analysis only';
+    resolveAudio(null);
+  }
+
+  // Face capture loop
+  let frameCount = 0;
+  let bestFace   = lastFaceResult;
+  const FACIAL   = ['Angry','Disgust','Fear','Happy','Sad','Surprise','Neutral'];
+  const HIGH     = ['Angry','Fear','Disgust'];
+  const LOW      = ['Happy','Neutral'];
+  const CIRC     = 345;
+
+  cdRing.style.strokeDashoffset = '0';
+
+  const faceInterval = setInterval(async () => {
+    if (!scanActive) { clearInterval(faceInterval); return; }
+    try {
+      const img = captureFrame();
+      const r = await fetch(API + '/api/predict/face', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: img }),
+        credentials: 'include'
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      frameCount++;
+      frameCountEl.textContent = frameCount + ' frame' + (frameCount !== 1 ? 's' : '') + ' captured';
+      if (d.face_detected) {
+        drawFaceBox(d);
+        const pill = document.getElementById('camEmoPill');
+        pill.style.display = 'block';
+        document.getElementById('camEmoName').textContent = d.emotion;
+        document.getElementById('camEmoConf').textContent = 'Conf: ' + d.confidence + '%';
+        if (!bestFace || !bestFace.face_detected || d.confidence > bestFace.confidence) bestFace = d;
+        const chips = document.querySelectorAll('#faceChips .chip');
+        chips.forEach((c,i) => {
+          c.classList.remove('on','high','low');
+          if (FACIAL[i] === d.emotion) {
+            if (HIGH.includes(d.emotion)) c.classList.add('high');
+            else if (LOW.includes(d.emotion)) c.classList.add('low');
+            else c.classList.add('on');
+          }
+        });
+      }
+    } catch(e) { frameCount++; }
+  }, 2000);
+
+  // Countdown timer
+  await new Promise(resolve => {
+    let remaining = SCAN_DURATION;
+    const tick = () => {
+      bigTimer.textContent    = remaining + 's';
+      bigTimerSub.textContent = remaining + ' seconds remaining · keep still';
+      cdNum.textContent       = remaining;
+      cdRing.style.strokeDashoffset = String(CIRC * (1 - ((SCAN_DURATION - remaining) / SCAN_DURATION)));
+      cdRing.style.stroke = remaining <= 2 ? 'var(--high)' : remaining <= 3 ? 'var(--med)' : 'var(--a3)';
+      const pct = ((SCAN_DURATION - remaining) / SCAN_DURATION) * 80;
+      progressFill.style.transition = 'width 1s linear';
+      progressFill.style.width = pct + '%';
+      if (remaining <= 0) { resolve(); return; }
+      remaining--;
+      setTimeout(tick, 1000);
+    };
+    tick();
+  });
+
+  clearInterval(faceInterval);
+  scanActive = false;
+  overlay.className = 'scan-overlay';
+  document.getElementById('noFaceMsg').style.display = 'none';
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+
+  bigTimer.className    = 'scan-big-timer';
+  bigTimerSub.className = 'scan-big-timer-sub';
+
+  statusText.textContent = '🔬 Processing speech from mic…';
+  progressFill.style.transition = 'width .3s';
+  progressFill.style.width = '85%';
+  micBadge.className = 'mic-status-badge ok show';
+  micText.textContent = 'Processing voice emotion…';
+
+  const recordedBlob = await audioReady;
+
+  if (recordedBlob && recordedBlob.size > 0) {
+    try {
+      const form = new FormData();
+      form.append('audio', recordedBlob, 'mic_recording.webm');
+      const r = await fetch(API + '/api/predict/speech', {
+        method: 'POST',
+        body: form,
+        credentials: 'include'
+      });
+      if (r.ok) {
+        const d = await r.json();
+        console.log('[speech] API response:', d);  // debug
+        speechResult = d;
+        // Re-render speech chips with real label order
+        if (d.labels && d.labels.length) {
+          renderSpeechChips(d.labels);
+        }
+        // FIX: show actual probability bars
+        renderSpeechProbBars(d.labels, d.probabilities);
+        updateSpeechUI(d);
+      } else {
+        const errText = await r.text();
+        throw new Error('Speech API returned ' + r.status + ': ' + errText);
+      }
+    } catch(e) {
+      console.error('Speech prediction failed:', e);
+      document.getElementById('speechResult').innerHTML =
+        '⚠️ <b>Speech analysis failed:</b> ' + e.message + '<br><small>Check backend terminal for details.</small>';
+      document.getElementById('speechResult').style.borderColor = 'rgba(196,122,16,.35)';
+      speechResult = { emotion: 'Neutral', confidence: 0, probabilities: [], labels: SPEECH_FB, _failed: true };
+    }
+  } else {
+    document.getElementById('speechResult').innerHTML =
+      '⚠️ <b>No microphone audio captured</b> — face-only stress result shown.';
+    speechResult = { emotion: 'Neutral', confidence: 0, probabilities: [], labels: SPEECH_FB, _failed: true };
+  }
+
+  micBadge.className = 'mic-status-badge';
+
+  faceResult = bestFace || lastFaceResult;
+
+  if (!faceResult || !faceResult.face_detected) {
+    document.getElementById('speechResult').innerHTML +=
+      ' &nbsp;⚠️ <b>No face detected</b> during scan — please ensure good lighting.';
+  }
+
+  statusText.textContent = '📊 Generating stress report…';
+  progressFill.style.width = '92%';
+
+  const speechLabelsForAnalyze = speechResult?.labels || SPEECH_FB;
+
+  let report;
+  try {
+    const r = await fetch(API + '/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        face_emotion:   faceResult?.emotion       || 'Neutral',
+        face_probs:     faceResult?.probabilities || [],
+        face_conf:      faceResult?.confidence    || 0,
+        speech_emotion: speechResult?.emotion     || 'Neutral',
+        speech_probs:   speechResult?.probabilities || [],
+        speech_conf:    speechResult?.confidence  || 0,
+        speech_labels:  speechLabelsForAnalyze
+      }),
+      credentials: 'include'
+    });
+    if (r.ok) report = await r.json();
+    else throw new Error('analyze API returned ' + r.status);
+  } catch(e) {
+    console.warn('Analyze endpoint failed, computing locally:', e);
+    report = buildLocalReport(faceResult, speechResult);
+  }
+
+  report._frames = frameCount;
+  progressFill.style.width = '100%';
+
+  renderReport(report, frameCount);
+  showPage('reportPage');
+}
+
+// ═══════════════════════════════
+// SPEECH UI UPDATE (scan page chips)
+// ═══════════════════════════════
+function updateSpeechUI(d) {
+  const res    = document.getElementById('speechResult');
+  const chips  = document.querySelectorAll('#speechChips .chip');
+
+  const labels = (d.labels && d.labels.length ? d.labels : SPEECH_FB)
+                   .map(l => l.charAt(0).toUpperCase() + l.slice(1));
+
+  const emo    = (d.emotion || '').toLowerCase();
+  const cap    = emo.charAt(0).toUpperCase() + emo.slice(1);
+  const conf   = d.confidence || 0;
+
+  const HIGH_EMO = ['angry','fearful','disgust','sad'];
+  const LOW_EMO  = ['calm','happy','neutral'];
+  const borderColor = HIGH_EMO.includes(emo) ? 'rgba(208,48,85,.35)'
+                    : LOW_EMO.includes(emo)  ? 'rgba(0,143,116,.35)'
+                    : 'rgba(196,122,16,.35)';
+  res.style.borderColor = borderColor;
+
+  res.innerHTML =
+    '🎤 Voice analysed → Emotion: <b>' + cap + '</b>' +
+    ' &nbsp;·&nbsp; Confidence: <b>' + conf.toFixed(1) + '%</b>';
+
+  chips.forEach((c, i) => {
+    c.classList.remove('on','high','low');
+    if (labels[i] && labels[i].toLowerCase() === emo) {
+      if (HIGH_EMO.includes(emo)) c.classList.add('high');
+      else if (LOW_EMO.includes(emo)) c.classList.add('low');
+      else c.classList.add('on');
+    }
+  });
+}
+
+// ═══════════════════════════════
+// REPORT RENDER
+// ═══════════════════════════════
+function renderReport(report, frames) {
+  const level  = report.stress_level || 'medium';
+  const score  = report.stress_score || 50;
+  const copy   = STRESS_COPY[level];
+
+  document.getElementById('reportTs').textContent = report.timestamp || new Date().toLocaleString();
+
+  const fill   = document.getElementById('gaugeFill');
+  const colors = { high:'#D03055', medium:'#C47A10', low:'#008F74' };
+  fill.style.stroke = colors[level];
+  setTimeout(() => { fill.style.strokeDashoffset = String(452 - (score / 100) * 452); }, 100);
+  document.getElementById('gaugePct').textContent  = Math.round(score) + '%';
+  document.getElementById('gaugePct').style.color  = colors[level];
+
+  const badge = document.getElementById('stressLevelBadge');
+  badge.textContent = { high:'🔴 High Stress', medium:'🟡 Moderate Stress', low:'🟢 Low Stress' }[level];
+  badge.className   = 'stress-level-badge ' + { high:'badge-high', medium:'badge-med', low:'badge-low' }[level];
+
+  document.getElementById('stressTitle').textContent = copy.title;
+  document.getElementById('stressDesc').textContent  = copy.desc;
+
+  const pills = document.getElementById('emotionPills'); pills.innerHTML = '';
+  if (report.face_emotion)   pills.innerHTML += '<div class="emo-pill">😐 ' + report.face_emotion + '<span>Face</span></div>';
+  if (report.speech_emotion) {
+    const se = report.speech_emotion;
+    pills.innerHTML += '<div class="emo-pill">🎤 ' + (se.charAt(0).toUpperCase() + se.slice(1)) + '<span>Voice</span></div>';
+  }
+
+  document.getElementById('scanMeta').innerHTML =
+    '<div class="scan-meta-pill">⏱️ <b>' + SCAN_DURATION + 's</b> scan</div>' +
+    '<div class="scan-meta-pill">📸 <b>' + (frames || 0) + '</b> face frames</div>' +
+    '<div class="scan-meta-pill">🎤 <b>Live mic</b> audio</div>';
+
+  if (report.face_score !== undefined && report.speech_score !== undefined) {
+    document.getElementById('scanMeta').innerHTML +=
+      '<div class="scan-meta-pill">🧠 Face stress: <b>' + report.face_score + '%</b></div>' +
+      '<div class="scan-meta-pill">🎙️ Voice stress: <b>' + report.speech_score + '%</b></div>';
+  }
+
+  renderCharts(report);
+
+  const quotes = QUOTES[level];
+  const q      = quotes[Math.floor(Math.random() * quotes.length)];
+  document.getElementById('quoteText').textContent   = q.text;
+  document.getElementById('quoteAuthor').textContent = q.author;
+
+  activeTab = 'exercise';
+  renderRecos(level);
+}
+
+// ═══════════════════════════════
+// CHARTS — FIXED: speech chart uses real probs from API
+// ═══════════════════════════════
+function renderCharts(report) {
+  const FACIAL = ['Angry','Disgust','Fear','Happy','Sad','Surprise','Neutral'];
+
+  // Use authoritative speech label order from backend
+  const rawSpeechLabels =
+    (report.speech_labels && report.speech_labels.length ? report.speech_labels : null) ||
+    (speechResult && speechResult.labels && speechResult.labels.length ? speechResult.labels : null) ||
+    SPEECH_FB;
+  const SPEECH = rawSpeechLabels.map(l => l.charAt(0).toUpperCase() + l.slice(1));
+
+  const palette = ['#7C5CFC','#E05A8A','#008F74','#C47A10','#D03055','#3AAEDC','#9A50EE','#DC50CC'];
+
+  if (faceChartInst)   { faceChartInst.destroy();   faceChartInst   = null; }
+  if (speechChartInst) { speechChartInst.destroy();  speechChartInst = null; }
+
+  function distValues(dist, labels) {
+    if (!dist || Object.keys(dist).length === 0) {
+      const uniform = +(100 / labels.length).toFixed(2);
+      return labels.map(() => uniform);
+    }
+    const lc = {};
+    Object.keys(dist).forEach(k => { lc[k.toLowerCase()] = dist[k]; });
+    return labels.map(e => {
+      const val = dist[e] !== undefined ? dist[e] : (lc[e.toLowerCase()] !== undefined ? lc[e.toLowerCase()] : 0);
+      return +val;
+    });
+  }
+
+  // Build dists from raw probabilities if not returned by backend
+  if ((!report.face_dist || Object.keys(report.face_dist).length === 0) &&
+      faceResult && faceResult.probabilities && faceResult.probabilities.length === FACIAL.length) {
+    report.face_dist = {};
+    FACIAL.forEach((e, i) => { report.face_dist[e] = +((faceResult.probabilities[i] || 0) * 100).toFixed(2); });
+  }
+
+  // FIX: Build speech_dist directly from speechResult.probabilities if available
+  // This ensures the chart shows real data, not fallback uniform distribution
+  if (speechResult && speechResult.probabilities && speechResult.probabilities.length > 0 &&
+      speechResult.probabilities.length === SPEECH.length) {
+    report.speech_dist = {};
+    SPEECH.forEach((e, i) => {
+      report.speech_dist[e] = +((speechResult.probabilities[i] || 0) * 100).toFixed(2);
+    });
+    console.log('[chart] speech_dist from real probs:', report.speech_dist);
+  }
+
+  const chartOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'right', labels: { color:'#5A4A7A', font:{size:11}, padding:8, boxWidth:10 } },
+      tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed.toFixed(1) + '%' } }
+    }
+  };
+
+  const fp = distValues(report.face_dist, FACIAL);
+  faceChartInst = new Chart(document.getElementById('faceChart'), {
+    type: 'doughnut',
+    data: { labels: FACIAL, datasets: [{ data: fp, backgroundColor: palette, borderWidth: 0, hoverOffset: 6 }] },
+    options: chartOpts
+  });
+
+  const sp = distValues(report.speech_dist, SPEECH);
+  console.log('[chart] speech chart values:', SPEECH, sp);
+  speechChartInst = new Chart(document.getElementById('speechChart'), {
+    type: 'doughnut',
+    data: { labels: SPEECH, datasets: [{ data: sp, backgroundColor: palette, borderWidth: 0, hoverOffset: 6 }] },
+    options: chartOpts
+  });
+}
+
+// ═══════════════════════════════
+// RECOMMENDATION TABS
+// ═══════════════════════════════
+function showTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.rtab').forEach((t, i) =>
+    t.classList.toggle('active', ['exercise','meditation','music'][i] === tab)
+  );
+  const badge = document.getElementById('stressLevelBadge').textContent;
+  const level = badge.includes('High') ? 'high' : badge.includes('Moderate') ? 'medium' : 'low';
+  renderRecos(level);
+}
+
+function renderRecos(level) {
+  const items = RECO[activeTab][level];
+  const grid  = document.getElementById('recoGrid');
+  grid.innerHTML = '';
+  items.forEach(item => {
+    grid.innerHTML += `
+    <a class="reco-card" href="${item.url}" target="_blank" rel="noopener">
+      <div class="reco-thumb ${item.g}">
+        <div class="reco-thumb-emoji">${item.emoji}</div>
+        <div class="reco-thumb-fade"></div>
+        <div class="reco-duration">${item.dur}</div>
+        <div class="reco-play-overlay">
+          <div class="reco-play-btn"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
+        </div>
+      </div>
+      <div class="reco-body">
+        <div class="reco-tag">${item.tag}</div>
+        <div class="reco-name">${item.name}</div>
+        <div class="reco-sub">${item.sub}</div>
+        <div class="reco-footer">
+          <div class="reco-platform">
+            <div class="reco-platform-icon">
+              <svg viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34l-.03-8.35a8.23 8.23 0 0 0 4.81 1.55V5.06a4.85 4.85 0 0 1-1.01-.37z"/></svg>
+            </div>
+            YouTube
+          </div>
+          <div class="reco-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </div>
+        </div>
+      </div>
+    </a>`;
+  });
+}
+
+// ═══════════════════════════════
+// LOCAL STRESS CALCULATION (fallback)
+// ═══════════════════════════════
+const STRESS_WEIGHTS_JS = {
+  angry:0.9, disgust:0.8, fear:0.9, fearful:0.9, sad:0.7,
+  surprise:0.5, surprised:0.5, neutral:0.2, happy:0.1, calm:0.1
+};
+
+function buildLocalReport(face, speech) {
+  const FACIAL = ['Angry','Disgust','Fear','Happy','Sad','Surprise','Neutral'];
+  const rawSpeechLabels =
+    (speech && speech.labels && speech.labels.length ? speech.labels : null) || SPEECH_FB;
+  const SPEECH = rawSpeechLabels.map(l => l.charAt(0).toUpperCase() + l.slice(1));
+
+  const fp = (face  && face.probabilities  && face.probabilities.length  === FACIAL.length)
+    ? face.probabilities  : FACIAL.map(() => 1/FACIAL.length);
+  const sp = (speech && speech.probabilities && speech.probabilities.length === SPEECH.length)
+    ? speech.probabilities : SPEECH.map(() => 1/SPEECH.length);
+
+  const fScore = fp.reduce((s,p,i) => s + p * (STRESS_WEIGHTS_JS[FACIAL[i].toLowerCase()] || 0), 0) * 100;
+  const sScore = sp.reduce((s,p,i) => s + p * (STRESS_WEIGHTS_JS[SPEECH[i].toLowerCase()] || 0), 0) * 100;
+  const combined = +(fScore * 0.6 + sScore * 0.4).toFixed(1);
+  const level = combined >= 65 ? 'high' : combined >= 40 ? 'medium' : 'low';
+
+  const face_dist   = {}; FACIAL.forEach((e,i) => face_dist[e]   = +((fp[i]||0)*100).toFixed(2));
+  const speech_dist = {}; SPEECH.forEach((e,i) => speech_dist[e] = +((sp[i]||0)*100).toFixed(2));
+
+  return {
+    stress_score:   combined, stress_level:  level,
+    face_score:     +fScore.toFixed(1),  speech_score: +sScore.toFixed(1),
+    face_emotion:   face?.emotion   || 'Unknown',
+    speech_emotion: speech?.emotion || 'Unknown',
+    face_dist, speech_dist,
+    speech_labels:  SPEECH,
+    timestamp: new Date().toLocaleString()
+  };
+}
+
+// ── Init ──
+Chart.defaults.color = '#5A4A7A';
+Chart.defaults.borderColor = 'rgba(100,70,160,0.06)';
+initAudioBars();
+</script>
+</body>
+</html>
